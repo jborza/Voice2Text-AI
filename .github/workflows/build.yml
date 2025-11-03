@@ -99,6 +99,7 @@ jobs:
     permissions:
       contents: write
     steps:
+    - uses: actions/checkout@v4
     - name: Download artifacts
       uses: actions/download-artifact@v4
     - name: Create Release
@@ -111,5 +112,6 @@ jobs:
           Voice2Text-macOS/Voice2Text
           Voice2Text-Linux/Voice2Text
           Voice2Text-Flatpak/com.voice2text.app.flatpak
+          install.sh
         draft: false
         prerelease: false

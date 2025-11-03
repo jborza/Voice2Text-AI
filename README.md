@@ -35,6 +35,13 @@ Download the latest release for your platform from [GitHub Releases](https://git
 - **Linux**: `Voice2Text` (or install via Flatpak below)
 
 ### Option 2: Flatpak (Linux)
+Download the installer script and run it:
+```bash
+wget https://github.com/crhy/Voice2Text-AI/releases/download/v0.2/install.sh
+chmod +x install.sh
+./install.sh
+```
+Or manually install the flatpak:
 ```bash
 flatpak install flathub com.voice2text.app
 ```
