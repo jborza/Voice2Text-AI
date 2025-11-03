@@ -28,22 +28,23 @@ A cross-platform Python application that transcribes voice input using GPU-accel
 
 ## Installation
 
-### Option 1: Download Executable (Recommended)
+### Option 1: Download Executable (Windows/macOS)
 Download the latest release for your platform from [GitHub Releases](https://github.com/crhy/Voice2Text-AI/releases):
 - **Windows**: `Voice2Text.exe`
-- **macOS**: `Voice2Text.app`
-- **Linux**: `Voice2Text` (or install via Flatpak below)
+- **macOS**: `Voice2Text`
 
-### Option 2: Flatpak (Linux)
-Download the installer script and run it:
+### Option 2: Linux Installer (Recommended for Linux)
+For Linux users who don't have Ollama installed, download and run the installer script to set up everything automatically (Ollama, model, and the app):
 ```bash
 wget https://github.com/crhy/Voice2Text-AI/releases/download/v0.2/install.sh
 chmod +x install.sh
 ./install.sh
 ```
-Or manually install the flatpak:
+This is the easiest way to get started on Linux.
+
+If you already have Ollama installed, manually install the flatpak:
 ```bash
-flatpak install flathub com.voice2text.app
+flatpak install https://github.com/crhy/Voice2Text-AI/releases/download/v0.2/com.voice2text.app.flatpak
 ```
 
 ### Option 3: From Source
