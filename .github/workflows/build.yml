@@ -73,10 +73,12 @@ jobs:
         name: Voice2Text-Linux
         path: dist/Voice2Text
 
-  release:
-    needs: [build-windows, build-macos, build-linux]
-    runs-on: ubuntu-latest
-    steps:
+   release:
+     needs: [build-windows, build-macos, build-linux]
+     runs-on: ubuntu-latest
+     permissions:
+       contents: write
+     steps:
     - name: Download artifacts
       uses: actions/download-artifact@v4
     - name: Create Release
