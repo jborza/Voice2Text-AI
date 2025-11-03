@@ -17,7 +17,7 @@
       "name": "python3-pip",
       "buildsystem": "simple",
       "build-commands": [
-        "pip3 install --user pip"
+        "pip3 install --user --upgrade pip"
       ],
       "sources": []
     },
@@ -25,7 +25,7 @@
       "name": "voice2text",
       "buildsystem": "simple",
       "build-commands": [
-        "pip3 install --prefix=/app -r requirements.txt",
+        "pip3 install --user -r requirements.txt",
         "mkdir -p /app/bin",
         "cp voice_app.py /app/bin/",
         "cp voice_config.json /app/bin/",
