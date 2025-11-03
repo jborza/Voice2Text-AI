@@ -59,9 +59,8 @@ sleep 10
 echo "Pulling qwen2.5:0.5b model..."
 ollama pull qwen2.5:0.5b
 
-# Install the flatpak
-echo "Installing Voice2Text AI flatpak..."
-flatpak install -y flathub com.voice2text.app
+# Note: Flatpak will be available on Flathub once the PR is merged
+echo "Flatpak not yet available on Flathub. Please check back later or install from source."
 
 # Test Ollama
 echo "Testing Ollama..."
