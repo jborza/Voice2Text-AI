@@ -11,6 +11,8 @@ a = Analysis(
     hiddenimports=[
         'faster_whisper',
         'torch',
+        'torch.nn',
+        'torch.optim',
         'scipy',
         'pygame',
         'PIL',
@@ -26,7 +28,9 @@ a = Analysis(
         'tempfile',
         'wave',
         'threading',
-        'time'
+        'time',
+        'tkinter',
+        'tkinter.ttk'
     ],
     hookspath=[],
     hooksconfig={},
