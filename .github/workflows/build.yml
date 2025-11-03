@@ -27,17 +27,17 @@ jobs:
         name: Voice2Text-Windows
         path: dist/Voice2Text.exe
 
-   build-macos:
-     runs-on: macos-latest
-     steps:
-     - uses: actions/checkout@v4
-     - name: Set up Python
-       uses: actions/setup-python@v4
-       with:
-         python-version: '3.8'
-     - name: Install PortAudio
-       run: brew install portaudio
-     - name: Install dependencies
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+    - name: Install PortAudio
+      run: brew install portaudio
+    - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
@@ -50,17 +50,17 @@ jobs:
         name: Voice2Text-macOS
         path: dist/Voice2Text
 
-   build-linux:
-     runs-on: ubuntu-latest
-     steps:
-     - uses: actions/checkout@v4
-     - name: Set up Python
-       uses: actions/setup-python@v4
-       with:
-         python-version: '3.8'
-     - name: Install PortAudio
-       run: sudo apt-get update && sudo apt-get install -y portaudio19-dev
-     - name: Install dependencies
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+    - name: Install PortAudio
+      run: sudo apt-get update && sudo apt-get install -y portaudio19-dev
+    - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
