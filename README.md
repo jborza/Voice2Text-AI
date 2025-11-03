@@ -6,7 +6,7 @@
 
 - [Windows](https://github.com/crhy/Voice2Text-AI/releases/download/v0.2/Voice2Text.exe)
 - [macOS](https://github.com/crhy/Voice2Text-AI/releases/download/v0.2/Voice2Text)
-- Linux: Not available (build issues)
+- [Linux (Flatpak)](https://github.com/crhy/Voice2Text-AI/releases/download/v0.2/com.voice2text.app.flatpak)
 
 A cross-platform Python application that transcribes voice input using GPU-accelerated Whisper, sends text to local Ollama AI models for intelligent responses, and reads the output aloud with text-to-speech.
 
