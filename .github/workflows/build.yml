@@ -53,14 +53,14 @@ jobs:
         name: Voice2Text-macOS
         path: dist/Voice2Text
 
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.8'
+   build-linux:
+     runs-on: ubuntu-latest
+     steps:
+     - uses: actions/checkout@v4
+     - name: Set up Python
+       uses: actions/setup-python@v4
+       with:
+         python-version: '3.8'
      - name: Install PortAudio
        run: sudo apt-get update && sudo apt-get install -y portaudio19-dev xvfb
      - name: Install dependencies
@@ -70,11 +70,11 @@ jobs:
          pip install pyinstaller
      - name: Build executable
        run: xvfb-run pyinstaller voice_app.spec
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Voice2Text-Linux
-        path: dist/Voice2Text
+     - name: Upload artifact
+       uses: actions/upload-artifact@v4
+       with:
+         name: Voice2Text-Linux
+         path: dist/Voice2Text
 
    release:
      needs: [build-windows, build-macos, build-linux]
@@ -82,15 +82,15 @@ jobs:
      permissions:
        contents: write
      steps:
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+     - name: Download artifacts
+       uses: actions/download-artifact@v4
+     - name: Create Release
+       uses: softprops/action-gh-release@v2
+       env:
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
        with:
          files: |
            Voice2Text-Windows/Voice2Text.exe
            Voice2Text-macOS/Voice2Text
-        draft: false
-        prerelease: false
+         draft: false
+         prerelease: false
