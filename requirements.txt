@@ -1,0 +1,11 @@
+faster-whisper
+torch
+numpy
+pyperclip
+PyAudio
+scipy
+requests
+gTTS
+pygame
+pillow
+pygame
