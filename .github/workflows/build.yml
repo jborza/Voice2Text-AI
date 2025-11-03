@@ -82,12 +82,14 @@ jobs:
     steps:
     - name: Download artifacts
       uses: actions/download-artifact@v4
-    - name: Create Release
+- name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
           Voice2Text-Windows/Voice2Text.exe
           Voice2Text-macOS/Voice2Text
           Voice2Text-Linux/Voice2Text
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        draft: false
+        prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
