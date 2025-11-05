@@ -1,6 +1,6 @@
 app-id: com.voice2text.app
 runtime: org.freedesktop.Platform
-runtime-version: '24.08'
+runtime-version: '23.08'
 sdk: org.freedesktop.Sdk
 command: voice_app.py
 finish-args:
