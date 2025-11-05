@@ -37,7 +37,9 @@ Download the latest release from [GitHub Releases](https://github.com/crhy/Voice
 flatpak install flathub com.voice2text.app
 
 # Or download from GitHub Releases
-# Look for: voice2text.flatpak
+# Download: voice2text.flatpak from latest release
+# Install: flatpak install --user voice2text.flatpak
+# Run: flatpak run com.voice2text.app
 ```
 
 ### From Source
