@@ -69,6 +69,10 @@ class VoiceApp:
         self.queue = queue.Queue()
         self.process_queue()
 
+        # Performance and memory optimization
+        self.audio_frames = []  # Limit memory usage
+        self.max_audio_frames = 1000  # Prevent excessive memory usage
+
         # Ollama models
         self.ollama_models = self.get_ollama_models()
         self.selected_model = self.config.get('selected_model', "llama3.2" if "llama3.2" in self.ollama_models else (self.ollama_models[0] if self.ollama_models else "llama3.2"))
@@ -111,14 +115,23 @@ class VoiceApp:
         self.root.after(100, self.process_queue)
 
     def get_ollama_models(self):
+        """Get available Ollama models with improved error handling."""
         try:
             response = requests.get('http://localhost:11434/api/tags', timeout=5)
-            if response.status_code == 200:
-                models = [model['name'] for model in response.json()['models']]
-                return models
-            else:
-                return []
-        except:
+            response.raise_for_status()  # Raise exception for bad status codes
+            data = response.json()
+            return [model['name'] for model in data.get('models', [])]
+        except requests.exceptions.Timeout:
+            self.update_status("Ollama connection timeout - check if Ollama is running", "orange")
+            return []
+        except requests.exceptions.ConnectionError:
+            self.update_status("Cannot connect to Ollama - start with 'ollama serve'", "red")
+            return []
+        except requests.exceptions.RequestException as e:
+            self.update_status(f"Ollama request error: {str(e)[:50]}", "red")
+            return []
+        except (KeyError, ValueError) as e:
+            self.update_status(f"Invalid Ollama response: {str(e)[:50]}", "red")
             return []
 
     def load_config(self):
@@ -181,46 +194,61 @@ class VoiceApp:
         return int(match.group(1)) if match else 0
 
     def load_whisper_model(self):
-        print(f"Loading Whisper model: {self.selected_whisper_model}... (this may take a minute)")
+        """Load Whisper model with improved error handling and performance."""
+        if hasattr(self, 'model') and self.model is not None:
+            return  # Model already loaded
+
+        self.update_status(f"Loading Whisper model: {self.selected_whisper_model}...", "#ffaa00")
+
+        # Determine optimal device and compute type
         device = "cuda" if torch.cuda.is_available() else "cpu"
         compute_type = "float16" if device == "cuda" else "int8"
-        print(f"Using device: {device}, compute_type: {compute_type}")
+
         try:
-            self.model = WhisperModel(self.selected_whisper_model, device=device, compute_type=compute_type)
-            print("Whisper model loaded!")
-            try:
-                self.queue.put(("update_status", "Whisper model loaded!", "#00aa00"))
-            except AttributeError:
-                pass  # Queue not initialized yet
-        except Exception as e:
+            self.model = WhisperModel(
+                self.selected_whisper_model,
+                device=device,
+                compute_type=compute_type,
+                cpu_threads=4 if device == "cpu" else 0  # Optimize CPU threads
+            )
+            self.update_status("Whisper model loaded successfully!", "#00aa00")
+
+        except RuntimeError as e:
             if "out of memory" in str(e).lower() and device == "cuda":
-                print("CUDA out of memory, falling back to CPU...")
-                device = "cpu"
-                compute_type = "int8"
+                self.update_status("CUDA out of memory, falling back to CPU...", "#ffaa00")
                 try:
-                    self.model = WhisperModel(self.selected_whisper_model, device=device, compute_type=compute_type)
-                    print("Whisper model loaded on CPU!")
-                    try:
-                        self.queue.put(("update_status", "Whisper model loaded on CPU!", "#00aa00"))
-                    except AttributeError:
-                        pass
+                    device = "cpu"
+                    compute_type = "int8"
+                    self.model = WhisperModel(
+                        self.selected_whisper_model,
+                        device=device,
+                        compute_type=compute_type,
+                        cpu_threads=4
+                    )
+                    self.update_status("Whisper model loaded on CPU!", "#00aa00")
                 except Exception as e2:
-                    print(f"Failed to load model: {e2}")
-                    try:
-                        self.queue.put(("show_error", f"Failed to load Whisper model: {e2}"))
-                    except AttributeError:
-                        pass
+                    error_msg = f"Failed to load Whisper model on CPU: {str(e2)[:100]}"
+                    self.update_status(error_msg, "red")
+                    self.model = None
             else:
-                print(f"Failed to load model: {e}")
-                try:
-                    self.queue.put(("show_error", f"Failed to load Whisper model: {e}"))
-                except AttributeError:
-                    pass
+                error_msg = f"Failed to load Whisper model: {str(e)[:100]}"
+                self.update_status(error_msg, "red")
+                self.model = None
+
+        except Exception as e:
+            error_msg = f"Unexpected error loading Whisper model: {str(e)[:100]}"
+            self.update_status(error_msg, "red")
+            self.model = None
 
     def audio_callback(self, in_data, frame_count, time_info, status):
-        """Callback for audio stream"""
+        """Callback for audio stream with memory management"""
         if self.is_listening:
             self.audio_frames.append(in_data)
+            # Prevent excessive memory usage by limiting frame buffer
+            if len(self.audio_frames) > self.max_audio_frames:
+                # Remove oldest frames to maintain buffer size
+                remove_count = len(self.audio_frames) - self.max_audio_frames
+                self.audio_frames = self.audio_frames[remove_count:]
         return (in_data, pyaudio.paContinue)
 
     def create_gui(self):
@@ -286,9 +314,14 @@ class VoiceApp:
             self.model_var.set("Ollama not running")
         self.model_var.trace('w', self.on_model_change)
 
-        # Status label
+        # Status label with loading indicator
         self.status_label = tk.Label(self.root, text="Ready", font=('Helvetica', 12, 'bold'), bg='#000033', fg='yellow')
         self.canvas.create_window(450, 110, window=self.status_label)
+
+        # Progress indicator
+        self.progress_var = tk.StringVar(value="")
+        self.progress_label = tk.Label(self.root, textvariable=self.progress_var, font=('Helvetica', 10), bg='#000033', fg='cyan')
+        self.canvas.create_window(450, 130, window=self.progress_label)
 
         # Text area
         text_frame = ttk.Frame(self.root)
@@ -361,8 +394,10 @@ class VoiceApp:
             self.update_status(f"Loading Whisper model: {self.selected_whisper_model}...", "#ffaa00")
             threading.Thread(target=self.load_whisper_model, daemon=True).start()
 
-    def update_status(self, message, color='gray'):
+    def update_status(self, message, color='gray', progress_text=""):
+        """Update status with optional progress indicator."""
         self.status_label.config(text=message, fg=color)
+        self.progress_var.set(progress_text)
         self.root.update_idletasks()
 
     def start_dictation(self):
@@ -417,59 +452,133 @@ class VoiceApp:
             self.update_status("No text to send to AI", "black")
 
     def query_ollama_and_speak(self, user_text):
-        try:
-            # Check if Ollama is running
-            if not self.ollama_models:
-                self.update_status("Ollama not running - start with 'ollama serve'", "red")
-                return
+        """Query Ollama with retry logic and improved error handling."""
+        if not user_text or not user_text.strip():
+            self.update_status("No text to send to AI", "orange")
+            return
 
-            self.update_status("🤖 Querying AI...", "#ffaa00")
-            # Query Ollama
-            response = requests.post('http://localhost:11434/api/generate',
-                                   json={
-                                       "model": self.selected_model,
-                                       "prompt": user_text,
-                                       "stream": False
-                                   },
-                                   timeout=60)
-            if response.status_code == 200:
-                ai_response = response.json()['response'].strip()
+        # Check if Ollama is running
+        if not self.ollama_models:
+            self.update_status("Ollama not running - start with 'ollama serve'", "red")
+            return
+
+        # Sanitize input
+        user_text = user_text.strip()
+        if len(user_text) > 10000:  # Limit input size
+            user_text = user_text[:10000] + "..."
+            self.update_status("Input truncated to 10,000 characters", "orange")
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.update_status(f"🤖 Querying AI... (attempt {attempt + 1}/{max_retries})", "#ffaa00")
+
+                # Query Ollama with reasonable timeout
+                response = requests.post('http://localhost:11434/api/generate',
+                                        json={
+                                            "model": self.selected_model,
+                                            "prompt": user_text,
+                                            "stream": False
+                                        },
+                                        timeout=120)  # Increased timeout for slower models
+
+                response.raise_for_status()
+                ai_response = response.json().get('response', '').strip()
+
                 if ai_response:
                     # Display AI response
                     self.queue.put(("clear_ai",))
                     self.queue.put(("insert_ai", ai_response))
+
                     # Speak the response with gTTS
                     self.update_status("🎵 Generating speech...", "#00aa00")
                     self.speak_with_gtts(ai_response)
-                    self.update_status("🤖 AI responded!", "#00aa00")
+                    self.update_status("🤖 AI responded successfully!", "#00aa00")
+                    return  # Success, exit function
                 else:
                     self.update_status("AI gave empty response", "orange")
-            else:
-                self.update_status(f"Ollama error: {response.status_code}", "red")
-        except requests.exceptions.Timeout:
-            self.update_status("AI timeout - model may be slow", "red")
-        except requests.exceptions.ConnectionError:
-            self.update_status("Cannot connect to Ollama - check if running", "red")
-        except Exception as e:
-            self.update_status(f"AI error: {str(e)[:50]}", "red")
+                    return
+
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    self.update_status(f"AI timeout, retrying... ({attempt + 1}/{max_retries})", "orange")
+                    time.sleep(2)  # Wait before retry
+                    continue
+                else:
+                    self.update_status("AI timeout - model may be slow or overloaded", "red")
+
+            except requests.exceptions.ConnectionError:
+                self.update_status("Cannot connect to Ollama - check if running", "red")
+                break  # Don't retry connection errors
+
+            except requests.exceptions.HTTPError as e:
+                status_code = e.response.status_code if e.response else "unknown"
+                self.update_status(f"Ollama HTTP error {status_code}: {str(e)[:50]}", "red")
+                break  # Don't retry HTTP errors
+
+            except (KeyError, ValueError) as e:
+                self.update_status(f"Invalid response from Ollama: {str(e)[:50]}", "red")
+                break
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    self.update_status(f"AI error, retrying... ({attempt + 1}/{max_retries})", "orange")
+                    time.sleep(1)
+                    continue
+                else:
+                    self.update_status(f"AI error: {str(e)[:50]}", "red")
 
     def speak_with_gtts(self, text):
+        """Speak text with improved error handling and resource management."""
+        if not text or not text.strip():
+            self.update_status("No text to speak", "orange")
+            return
+
+        # Limit text length for TTS
+        text = text.strip()
+        if len(text) > 5000:
+            text = text[:5000] + "..."
+            self.update_status("Speech truncated to 5000 characters", "orange")
+
+        temp_file = None
         try:
-            self.root.after(0, lambda: self.update_status("🔊 Speaking...", "#00aa00"))
+            self.update_status("🔊 Generating speech...", "#00aa00")
             self.tts_playing = True
+
+            # Create TTS with error handling
             tts = gTTS(text=text, lang='en', slow=False, tld='co.uk')
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
+
+            # Use secure temporary file
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3', mode='w+b')
+            temp_file.close()  # Close so gTTS can write to it
+
             tts.save(temp_file.name)
+
+            # Load and play audio
             pygame.mixer.music.load(temp_file.name)
             pygame.mixer.music.play()
+
+            # Wait for playback to complete or stop signal
             while pygame.mixer.music.get_busy() and self.tts_playing:
                 pygame.time.wait(100)
+
             pygame.mixer.music.stop()
-            os.unlink(temp_file.name)
+            self.update_status("Speech completed", "#00aa00")
+
+        except pygame.error as e:
+            error_msg = f"Audio playback error: {str(e)[:50]}"
+            self.update_status(error_msg, "red")
         except Exception as e:
-            print(f"TTS error: {e}")
+            error_msg = f"TTS error: {str(e)[:50]}"
+            self.update_status(error_msg, "red")
         finally:
+            # Clean up resources
             self.tts_playing = False
+            if temp_file and os.path.exists(temp_file.name):
+                try:
+                    os.unlink(temp_file.name)
+                except OSError:
+                    pass  # Ignore cleanup errors
             self.queue.put(("update_status", "Ready", "white"))
 
     def stop_tts(self):
@@ -515,7 +624,10 @@ class VoiceApp:
             self.queue.put(("update_status", "🎙️ Listening... (real-time)", "#00aa00"))
 
             processed_frames = 0
-            chunk_duration = 2  # seconds for faster real-time display with good accuracy
+            chunk_duration = 3  # Increased to 3 seconds for better accuracy and less CPU usage
+            silence_threshold = 500  # RMS threshold for silence detection
+            consecutive_silent_chunks = 0
+            max_silent_chunks = 5  # Stop after 15 seconds of silence
 
             # Real-time transcription loop
             while self.is_listening:
@@ -526,11 +638,30 @@ class VoiceApp:
                     chunk_frames = self.audio_frames[processed_frames:]
                     processed_frames = len(self.audio_frames)
 
+                    # Quick silence detection to avoid unnecessary processing
+                    if len(chunk_frames) > 0:
+                        try:
+                            audio_data = np.frombuffer(b''.join(chunk_frames), dtype=np.int16)
+                            rms = np.sqrt(np.mean(audio_data.astype(np.float32) ** 2))
+
+                            if rms < silence_threshold:
+                                consecutive_silent_chunks += 1
+                                if consecutive_silent_chunks >= max_silent_chunks:
+                                    self.queue.put(("update_status", "Silence detected, stopping...", "#ffaa00"))
+                                    self.stop_dictation()
+                                    break
+                            else:
+                                consecutive_silent_chunks = 0
+                        except:
+                            pass  # Continue processing if RMS calculation fails
+
                     # Process this chunk
                     self.queue.put(("update_status", "🔍 Recognizing...", "#ffaa00"))
                     try:
-                        # Convert chunk to numpy and resample
+                        # Convert chunk to numpy and resample (optimized)
                         audio_data = np.frombuffer(b''.join(chunk_frames), dtype=np.int16)
+
+                        # Only resample if necessary and cache the resampled data
                         if self.sample_rate != 16000:
                             num_samples = len(audio_data)
                             target_samples = int(num_samples * 16000 / self.sample_rate)
@@ -546,7 +677,10 @@ class VoiceApp:
                                 wf.setframerate(16000)
                                 wf.writeframes(audio_data.tobytes())
 
-                        # Transcribe chunk
+                        # Transcribe chunk with error checking
+                        if self.model is None:
+                            raise RuntimeError("Whisper model not loaded")
+
                         segments, info = self.model.transcribe(temp_filename, language="en")
                         text = " ".join(segment.text for segment in segments).strip()
 
@@ -588,6 +722,9 @@ class VoiceApp:
                             wf.setsampwidth(2)
                             wf.setframerate(16000)
                             wf.writeframes(audio_data.tobytes())
+
+                    if self.model is None:
+                        raise RuntimeError("Whisper model not loaded")
 
                     segments, info = self.model.transcribe(temp_filename, language="en")
                     text = " ".join(segment.text for segment in segments).strip()

@@ -9,7 +9,6 @@ import json
 import pyaudio
 import re
 import os
-import subprocess
 import time
 from gtts import gTTS
 import pygame
@@ -195,14 +194,23 @@ class DictationApp:
         return int(match.group(1)) if match else None
 
     def get_ollama_models(self):
+        """Get available Ollama models with improved error handling."""
         try:
-            response = requests.get("http://localhost:11434/api/tags")
-            if response.status_code == 200:
-                data = response.json()
-                return [model['name'] for model in data.get('models', [])]
-            else:
-                return []
-        except:
+            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            return [model['name'] for model in data.get('models', [])]
+        except requests.exceptions.Timeout:
+            self.status_var.set("Ollama connection timeout")
+            return []
+        except requests.exceptions.ConnectionError:
+            self.status_var.set("Cannot connect to Ollama - start with 'ollama serve'")
+            return []
+        except (KeyError, ValueError):
+            self.status_var.set("Invalid response from Ollama")
+            return []
+        except Exception as e:
+            self.status_var.set(f"Ollama error: {str(e)[:50]}")
             return []
 
     def start_dictation(self):
@@ -277,31 +285,80 @@ class DictationApp:
                 self.pause_tts_button.config(text="Resume TTS")
 
     def send_to_ollama(self, text):
+        """Send text to Ollama with retry logic and better error handling."""
         model = self.selected_model.get()
         if not model:
             self.text_area.insert(tk.END, "No model selected\n")
             return
 
+        if not text or not text.strip():
+            self.text_area.insert(tk.END, "No text to send\n")
+            return
+
+        # Sanitize input
+        text = text.strip()
+        if len(text) > 10000:
+            text = text[:10000] + "..."
+            self.text_area.insert(tk.END, "Input truncated to 10,000 characters\n")
+
         self.text_area.insert(tk.END, f"Sending to {model}...\n")
-        payload = {
-            "model": model,
-            "prompt": text,
-            "stream": False
-        }
-        try:
-            self.status_var.set("Processing")
-            response = requests.post("http://localhost:11434/api/generate", json=payload)
-            if response.status_code == 200:
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.status_var.set(f"Processing (attempt {attempt + 1}/{max_retries})")
+                payload = {
+                    "model": model,
+                    "prompt": text,
+                    "stream": False
+                }
+
+                response = requests.post("http://localhost:11434/api/generate",
+                                       json=payload, timeout=120)
+
+                response.raise_for_status()
                 data = response.json()
-                reply = data.get('response', '')
-                self.text_area.insert(tk.END, f"Ollama: {reply}\n")
-                self.speak_response(reply)
-            else:
-                self.text_area.insert(tk.END, f"Error from Ollama: {response.status_code}\n")
+                reply = data.get('response', '').strip()
+
+                if reply:
+                    self.text_area.insert(tk.END, f"Ollama: {reply}\n")
+                    self.speak_response(reply)
+                else:
+                    self.text_area.insert(tk.END, "Ollama returned empty response\n")
+
                 self.status_var.set("Ready")
-        except Exception as e:
-            self.text_area.insert(tk.END, f"Error connecting to Ollama: {e}\n")
-            self.status_var.set("Ready")
+                return  # Success
+
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    self.text_area.insert(tk.END, f"Timeout, retrying... ({attempt + 1}/{max_retries})\n")
+                    time.sleep(2)
+                    continue
+                else:
+                    self.text_area.insert(tk.END, "Ollama timeout - model may be slow\n")
+
+            except requests.exceptions.ConnectionError:
+                self.text_area.insert(tk.END, "Cannot connect to Ollama - check if running\n")
+                break
+
+            except requests.exceptions.HTTPError as e:
+                status_code = e.response.status_code if e.response else "unknown"
+                self.text_area.insert(tk.END, f"Ollama HTTP error {status_code}: {str(e)[:50]}\n")
+                break
+
+            except (KeyError, ValueError) as e:
+                self.text_area.insert(tk.END, f"Invalid response from Ollama: {str(e)[:50]}\n")
+                break
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    self.text_area.insert(tk.END, f"Error, retrying... ({attempt + 1}/{max_retries})\n")
+                    time.sleep(1)
+                    continue
+                else:
+                    self.text_area.insert(tk.END, f"Error connecting to Ollama: {str(e)[:50]}\n")
+
+        self.status_var.set("Ready")
 
     def speak_response(self, text):
         # TODO: Use selected output device
