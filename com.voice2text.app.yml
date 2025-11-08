@@ -10,20 +10,20 @@ finish-args:
   - --device=all
   - --filesystem=home
 modules:
-  - name: voice2text
-    buildsystem: simple
-    build-commands:
-      - pip3 install --user -r requirements.txt --break-system-packages
-      - mkdir -p /app/bin
-      - cp voice_app.py /app/bin/
-      - cp voice_config.json /app/bin/ || true
+   - name: voice2text
+     buildsystem: simple
+     build-commands:
+       - pip3 install --user -r requirements.txt --break-system-packages
+       - mkdir -p /app/bin
+       - cp voice_app.py /app/bin/
+       - cp voice_config.json /app/bin/ || true
      sources:
        - type: git
          url: https://github.com/crhy/Voice2Text-AI.git
-         tag: v0.2
-         commit: 8fb243c
+         tag: v0.3
+         commit: 7f44a79
        - type: file
          path: logo.png
-    post-install:
-      - install -Dm644 voice_app.desktop /app/share/applications/com.voice2text.app.desktop
+     post-install:
+       - install -Dm644 voice_app.desktop /app/share/applications/com.voice2text.app.desktop
        - install -Dm644 logo.png /app/share/icons/hicolor/512x512/apps/com.voice2text.app.png
